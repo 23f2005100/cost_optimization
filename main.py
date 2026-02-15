@@ -191,7 +191,6 @@ def query_endpoint(request: QueryRequest):
 # Analytics Endpoint
 # ---------------------------------------------------
 
-@app.get("/analytics")
 def analytics_endpoint():
 
     total = analytics["totalRequests"]
@@ -221,6 +220,15 @@ def analytics_endpoint():
             "TTL expiration"
         ]
     }
+
+@app.get("/analytics")
+def get_analytics():
+    return analytics_endpoint()
+
+@app.get("/cache/analytics")
+async def cache_analytics():
+    return analytics_endpoint()
+
 
 if __name__ == "__main__":
     import uvicorn
