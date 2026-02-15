@@ -32,9 +32,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_cohere_client():
+    key = os.getenv("CO_API_KEY")
+    if not key:
+        return None
+    return cohere.Client(key)
 
-
-co = cohere.Client(os.getenv("CO_API_KEY"))
 
 # ---------------------------------------------------
 # Cache + Analytics
@@ -91,12 +94,19 @@ def generate_answer(query):
 
 
 def get_embedding(text):
-    response = co.embed(
-        texts=[text],
-        model="embed-english-v3.0",
-        input_type="search_query"   # 🔥 REQUIRED
-    )
-    return np.array(response.embeddings[0])
+    client = get_cohere_client()
+    if not client:
+        return None
+
+    try:
+        response = client.embed(
+            texts=[text],
+            model="embed-english-v3.0",
+            input_type="search_query"
+        )
+        return np.array(response.embeddings[0])
+    except Exception:
+        return None
 
 
 
@@ -134,22 +144,22 @@ def query_endpoint(request: QueryRequest):
 
     # 2️⃣ Semantic Similarity Check
     query_embedding = get_embedding(query)
+    if query_embedding is not None:
+        for key, entry in cache.items():
+            similarity = cosine_similarity(query_embedding, entry["embedding"])
+            if similarity > SEMANTIC_THRESHOLD:
+                analytics["cacheHits"] += 1
+                cache.move_to_end(key)
+                entry["last_used"] = time.time()
 
-    for key, entry in cache.items():
-        similarity = cosine_similarity(query_embedding, entry["embedding"])
-        if similarity > SEMANTIC_THRESHOLD:
-            analytics["cacheHits"] += 1
-            cache.move_to_end(key)
-            entry["last_used"] = time.time()
+                latency = max(1, int((time.time() - start_time) * 1000))
 
-            latency = max(1, int((time.time() - start_time) * 1000))
-
-            return {
-                "answer": entry["answer"],
-                "cached": True,
-                "latency": latency,
-                "cacheKey": key
-            }
+                return {
+                    "answer": entry["answer"],
+                    "cached": True,
+                    "latency": latency,
+                    "cacheKey": key
+                }
 
     # 3️⃣ Cache Miss → Call LLM
     analytics["cacheMisses"] += 1
