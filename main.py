@@ -157,6 +157,7 @@ def query_endpoint(request: QueryRequest):
                 return {
                     "answer": entry["answer"],
                     "cached": True,
+
                     "latency": latency,
                     "cacheKey": key
                 }
@@ -224,3 +225,7 @@ def analytics_endpoint():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
+import time
+if not cache:
+    time.sleep(1)  # simulate heavy processing
